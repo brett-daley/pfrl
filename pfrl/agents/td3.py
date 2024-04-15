@@ -12,7 +12,6 @@ from pfrl.replay_buffer import ReplayUpdater, batch_experiences
 from pfrl.utils import clip_l2_grad_norm_
 from pfrl.utils.batch_states import batch_states
 from pfrl.utils.copy_param import synchronize_parameters
-import gc
 
 
 def _mean_or_nan(xs):
@@ -182,18 +181,18 @@ class TD3(AttributeSavingMixin, BatchAgent):
     def update_q_func(self, batch):
         """Compute loss for a given Q-function."""
 
+        batch_next_state = batch["next_state"]
+        batch_rewards = batch["reward"]
+        batch_terminal = batch["is_state_terminal"]
+        batch_state = batch["state"]
+        batch_actions = batch["action"]
+        batch_discount = batch["discount"]
+
         with torch.no_grad(), pfrl.utils.evaluating(
             self.target_policy
         ), pfrl.utils.evaluating(self.target_q_func1), pfrl.utils.evaluating(
             self.target_q_func2
         ):
-            batch_state = batch["state"]
-            batch_actions = batch["action"]
-            batch_next_state = batch["next_state"]
-            batch_rewards = batch["reward"]
-            batch_terminal = batch["is_state_terminal"]
-            batch_discount = batch["discount"]
-
             next_actions = self.target_policy_smoothing_func(
                 self.target_policy(batch_next_state).sample()
             )
@@ -214,8 +213,8 @@ class TD3(AttributeSavingMixin, BatchAgent):
         # Update stats
         # self.q1_record.extend(predict_q1.detach().cpu().numpy())
         # self.q2_record.extend(predict_q2.detach().cpu().numpy())
-        # self.q_func1_loss_record.append(float(loss1.detach().cpu().numpy()))
-        # self.q_func2_loss_record.append(float(loss2.detach().cpu().numpy()))
+        # self.q_func1_loss_record.append(float(loss1))
+        # self.q_func2_loss_record.append(float(loss2))
 
         self.q_func1_optimizer.zero_grad()
         loss1.backward()
@@ -298,12 +297,6 @@ class TD3(AttributeSavingMixin, BatchAgent):
         # if self.q_func_n_updates % self.policy_update_delay == 0:
         #     self.update_policy(batch)
         #     self.sync_target_network()
-
-        # for key, value in batch.items():
-        #     # print(key, type(value))
-        #     assert type(value) == torch.Tensor
-        #     del value
-        # del batch
 
     def batch_select_onpolicy_action(self, batch_obs):
         with torch.no_grad(), pfrl.utils.evaluating(self.policy):
