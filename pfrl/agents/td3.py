@@ -12,6 +12,7 @@ from pfrl.replay_buffer import ReplayUpdater, batch_experiences
 from pfrl.utils import clip_l2_grad_norm_
 from pfrl.utils.batch_states import batch_states
 from pfrl.utils.copy_param import synchronize_parameters
+import gc
 
 
 def _mean_or_nan(xs):
@@ -181,18 +182,18 @@ class TD3(AttributeSavingMixin, BatchAgent):
     def update_q_func(self, batch):
         """Compute loss for a given Q-function."""
 
-        batch_next_state = batch["next_state"]
-        batch_rewards = batch["reward"]
-        batch_terminal = batch["is_state_terminal"]
-        batch_state = batch["state"]
-        batch_actions = batch["action"]
-        batch_discount = batch["discount"]
-
         with torch.no_grad(), pfrl.utils.evaluating(
             self.target_policy
         ), pfrl.utils.evaluating(self.target_q_func1), pfrl.utils.evaluating(
             self.target_q_func2
         ):
+            batch_state = batch["state"]
+            batch_actions = batch["action"]
+            batch_next_state = batch["next_state"]
+            batch_rewards = batch["reward"]
+            batch_terminal = batch["is_state_terminal"]
+            batch_discount = batch["discount"]
+
             next_actions = self.target_policy_smoothing_func(
                 self.target_policy(batch_next_state).sample()
             )
@@ -211,10 +212,10 @@ class TD3(AttributeSavingMixin, BatchAgent):
         loss2 = F.mse_loss(target_q, predict_q2)
 
         # Update stats
-        self.q1_record.extend(predict_q1.detach().cpu().numpy())
-        self.q2_record.extend(predict_q2.detach().cpu().numpy())
-        self.q_func1_loss_record.append(float(loss1))
-        self.q_func2_loss_record.append(float(loss2))
+        # self.q1_record.extend(predict_q1.detach().cpu().numpy())
+        # self.q2_record.extend(predict_q2.detach().cpu().numpy())
+        # self.q_func1_loss_record.append(float(loss1.detach().cpu().numpy()))
+        # self.q_func2_loss_record.append(float(loss2.detach().cpu().numpy()))
 
         self.q_func1_optimizer.zero_grad()
         loss1.backward()
@@ -241,7 +242,7 @@ class TD3(AttributeSavingMixin, BatchAgent):
         # Since we want to maximize Q, loss is negation of Q
         loss = -torch.mean(q)
 
-        self.policy_loss_record.append(float(loss))
+        # self.policy_loss_record.append(float(loss))
         self.policy_optimizer.zero_grad()
         loss.backward()
         if self.max_grad_norm is not None:
@@ -252,17 +253,63 @@ class TD3(AttributeSavingMixin, BatchAgent):
     def update(self, experiences, errors_out=None):
         """Update the model from experiences"""
 
-        batch = batch_experiences(experiences, self.device, self.phi, self.gamma)
+        with torch.no_grad():
+            device = self.device
+            phi = self.phi
+            gamma = self.gamma
+            # batch = batch_experiences(experiences, self.device, self.phi, self.gamma)
+            batch_exp = {
+                "state": batch_states([elem[0]["state"] for elem in experiences], device, phi),
+                "action": torch.tensor(
+                    np.asarray([elem[0]["action"] for elem in experiences]), device=device
+                ),
+                "reward": torch.tensor(
+                    [
+                        sum((gamma**i) * exp[i]["reward"] for i in range(len(exp)))
+                        for exp in experiences
+                    ],
+                    dtype=torch.float32,
+                    device=device,
+                ),
+                "next_state": batch_states(
+                    [elem[-1]["next_state"] for elem in experiences], device, phi
+                ),
+                "is_state_terminal": torch.tensor(
+                    [
+                        any(transition["is_state_terminal"] for transition in exp)
+                        for exp in experiences
+                    ],
+                    dtype=torch.float32,
+                    device=device,
+                ),
+                "discount": torch.tensor(
+                    np.asarray([(gamma ** len(elem)) for elem in experiences]),
+                    dtype=torch.float32,
+                    device=device,
+                ),
+            }
+            if all(elem[-1]["next_action"] is not None for elem in experiences):
+                batch_exp["next_action"] = torch.tensor(
+                    np.asarray([elem[-1]["next_action"] for elem in experiences]), device=device
+                )
+            batch = batch_exp
+
         self.update_q_func(batch)
-        if self.q_func_n_updates % self.policy_update_delay == 0:
-            self.update_policy(batch)
-            self.sync_target_network()
+        # if self.q_func_n_updates % self.policy_update_delay == 0:
+        #     self.update_policy(batch)
+        #     self.sync_target_network()
+
+        # for key, value in batch.items():
+        #     # print(key, type(value))
+        #     assert type(value) == torch.Tensor
+        #     del value
+        # del batch
 
     def batch_select_onpolicy_action(self, batch_obs):
         with torch.no_grad(), pfrl.utils.evaluating(self.policy):
             batch_xs = self.batch_states(batch_obs, self.device, self.phi)
-            batch_action = self.policy(batch_xs).sample().cpu().numpy()
-        return list(batch_action)
+            batch_action = self.policy(batch_xs).sample().detach().cpu().numpy()
+            return list(batch_action)
 
     def batch_act(self, batch_obs):
         if self.training:

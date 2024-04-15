@@ -4,6 +4,10 @@ import os
 from pfrl.experiments.evaluator import Evaluator, save_agent
 from pfrl.utils.ask_yes_no import ask_yes_no
 
+import resource
+import gc
+import torch
+
 
 def save_agent_replay_buffer(agent, t, outdir, suffix="", logger=None):
     logger = logger or logging.getLogger(__name__)
@@ -65,6 +69,12 @@ def train_agent(
                 hook(env, agent, t)
 
             episode_end = terminated or reset or t == steps
+
+            if t % 10_000 == 0:
+                print(f"Collecting {gc.collect()} objects")
+                torch.cuda.empty_cache()
+                mem_kb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+                print(f"t={t} : RAM usage (GB) =", mem_kb / (1024 ** 2))
 
             if episode_end:
                 logger.info(
