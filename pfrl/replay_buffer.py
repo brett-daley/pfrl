@@ -175,39 +175,39 @@ def batch_experiences(experiences, device, phi, gamma, batch_states=batch_states
         dict of batched transitions
     """
 
+    def tensor_from_list(_list, dtype=None):
+        return torch.tensor(np.asarray(_list), dtype=dtype, device=device)
+
     batch_exp = {
         "state": batch_states([elem[0]["state"] for elem in experiences], device, phi),
-        "action": torch.as_tensor(
-            [elem[0]["action"] for elem in experiences], device=device
+        "action": tensor_from_list(
+            [elem[0]["action"] for elem in experiences],
         ),
-        "reward": torch.as_tensor(
+        "reward": tensor_from_list(
             [
                 sum((gamma**i) * exp[i]["reward"] for i in range(len(exp)))
                 for exp in experiences
             ],
             dtype=torch.float32,
-            device=device,
         ),
         "next_state": batch_states(
             [elem[-1]["next_state"] for elem in experiences], device, phi
         ),
-        "is_state_terminal": torch.as_tensor(
+        "is_state_terminal": tensor_from_list(
             [
                 any(transition["is_state_terminal"] for transition in exp)
                 for exp in experiences
             ],
             dtype=torch.float32,
-            device=device,
         ),
-        "discount": torch.as_tensor(
+        "discount": tensor_from_list(
             [(gamma ** len(elem)) for elem in experiences],
             dtype=torch.float32,
-            device=device,
         ),
     }
     if all(elem[-1]["next_action"] is not None for elem in experiences):
-        batch_exp["next_action"] = torch.as_tensor(
-            [elem[-1]["next_action"] for elem in experiences], device=device
+        batch_exp["next_action"] = tensor_from_list(
+            [elem[-1]["next_action"] for elem in experiences],
         )
     return batch_exp
 

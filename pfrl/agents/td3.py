@@ -252,57 +252,17 @@ class TD3(AttributeSavingMixin, BatchAgent):
     def update(self, experiences, errors_out=None):
         """Update the model from experiences"""
 
-        with torch.no_grad():
-            device = self.device
-            phi = self.phi
-            gamma = self.gamma
-            # batch = batch_experiences(experiences, self.device, self.phi, self.gamma)
-            batch_exp = {
-                "state": batch_states([elem[0]["state"] for elem in experiences], device, phi),
-                "action": torch.tensor(
-                    np.asarray([elem[0]["action"] for elem in experiences]), device=device
-                ),
-                "reward": torch.tensor(
-                    [
-                        sum((gamma**i) * exp[i]["reward"] for i in range(len(exp)))
-                        for exp in experiences
-                    ],
-                    dtype=torch.float32,
-                    device=device,
-                ),
-                "next_state": batch_states(
-                    [elem[-1]["next_state"] for elem in experiences], device, phi
-                ),
-                "is_state_terminal": torch.tensor(
-                    [
-                        any(transition["is_state_terminal"] for transition in exp)
-                        for exp in experiences
-                    ],
-                    dtype=torch.float32,
-                    device=device,
-                ),
-                "discount": torch.tensor(
-                    np.asarray([(gamma ** len(elem)) for elem in experiences]),
-                    dtype=torch.float32,
-                    device=device,
-                ),
-            }
-            if all(elem[-1]["next_action"] is not None for elem in experiences):
-                batch_exp["next_action"] = torch.tensor(
-                    np.asarray([elem[-1]["next_action"] for elem in experiences]), device=device
-                )
-            batch = batch_exp
-
+        batch = batch_experiences(experiences, self.device, self.phi, self.gamma)
         self.update_q_func(batch)
-        # if self.q_func_n_updates % self.policy_update_delay == 0:
-        #     self.update_policy(batch)
-        #     self.sync_target_network()
+        if self.q_func_n_updates % self.policy_update_delay == 0:
+            self.update_policy(batch)
+            self.sync_target_network()
 
     def batch_select_onpolicy_action(self, batch_obs):
         with torch.no_grad(), pfrl.utils.evaluating(self.policy):
             batch_xs = self.batch_states(batch_obs, self.device, self.phi)
-            batch_action = self.policy(batch_xs).sample().detach().cpu().numpy()
-            return list(batch_action)
+            batch_action = self.policy(batch_xs).sample().cpu().numpy()
+        return list(batch_action)
 
     def batch_act(self, batch_obs):
         if self.training:
