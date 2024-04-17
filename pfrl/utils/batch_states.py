@@ -1,5 +1,6 @@
 from typing import Any, Callable, Sequence
 
+import numpy as np
 import torch
 from torch.utils.data._utils.collate import default_collate
 
@@ -28,7 +29,7 @@ def batch_states(
     Return:
         the object which will be given as input to the model.
     """
-    features = [phi(s) for s in states]
+    features = np.stack([phi(s) for s in states])
     # return concat_examples(features, device=device)
     collated_features = default_collate(features)
     if isinstance(features[0], tuple):
