@@ -261,6 +261,7 @@ class TD3(AttributeSavingMixin, BatchAgent):
     def batch_select_onpolicy_action(self, batch_obs):
         with torch.no_grad(), pfrl.utils.evaluating(self.policy):
             batch_xs = self.batch_states(batch_obs, self.device, self.phi)
+            batch_xs = torch.tensor(batch_xs, device=self.device)
             batch_action = self.policy(batch_xs).sample().cpu().numpy()
         return list(batch_action)
 

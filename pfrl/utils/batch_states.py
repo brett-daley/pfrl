@@ -29,8 +29,8 @@ def batch_states(
     Return:
         the object which will be given as input to the model.
     """
-    features = np.stack([phi(s) for s in states])
-    return torch.tensor(features).to(device)
+    return np.stack([phi(s) for s in states])
+    # return torch.tensor(features).to(device)
     # output = torch.tensor(np.stack(states), device=device)
     # del features
     # return output
