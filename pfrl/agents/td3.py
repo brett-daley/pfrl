@@ -181,18 +181,18 @@ class TD3(AttributeSavingMixin, BatchAgent):
     def update_q_func(self, batch):
         """Compute loss for a given Q-function."""
 
-        batch_next_state = batch["next_state"]
-        batch_rewards = batch["reward"]
-        batch_terminal = batch["is_state_terminal"]
-        batch_state = batch["state"]
-        batch_actions = batch["action"]
-        batch_discount = batch["discount"]
-
         with torch.no_grad(), pfrl.utils.evaluating(
             self.target_policy
         ), pfrl.utils.evaluating(self.target_q_func1), pfrl.utils.evaluating(
             self.target_q_func2
         ):
+            batch_next_state = batch["next_state"]
+            batch_rewards = batch["reward"]
+            batch_terminal = batch["is_state_terminal"]
+            batch_state = batch["state"]
+            batch_actions = batch["action"]
+            batch_discount = batch["discount"]
+
             next_actions = self.target_policy_smoothing_func(
                 self.target_policy(batch_next_state).sample()
             )
@@ -211,8 +211,8 @@ class TD3(AttributeSavingMixin, BatchAgent):
         loss2 = F.mse_loss(target_q, predict_q2)
 
         # Update stats
-        self.q1_record.extend(predict_q1.detach().cpu().numpy())
-        self.q2_record.extend(predict_q2.detach().cpu().numpy())
+        # self.q1_record.extend(predict_q1.detach().cpu().numpy())
+        # self.q2_record.extend(predict_q2.detach().cpu().numpy())
         self.q_func1_loss_record.append(loss1.detach().cpu().numpy())
         self.q_func2_loss_record.append(loss2.detach().cpu().numpy())
 
