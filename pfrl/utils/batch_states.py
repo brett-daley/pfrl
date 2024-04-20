@@ -29,11 +29,12 @@ def batch_states(
     Return:
         the object which will be given as input to the model.
     """
-    features = np.array([phi(s) for s in states])
-    output = torch.tensor(features, device=device)
-    del features
-    return output
-    collated_features = default_collate(features)
-    if isinstance(features[0], tuple):
-        collated_features = tuple(collated_features)
-    return _to_recursive(collated_features, device)
+    features = np.stack([phi(s) for s in states])
+    return torch.tensor(features).to(device)
+    # output = torch.tensor(np.stack(states), device=device)
+    # del features
+    # return output
+    # collated_features = default_collate(features)
+    # if isinstance(features[0], tuple):
+    #     collated_features = tuple(collated_features)
+    # return _to_recursive(collated_features, device)

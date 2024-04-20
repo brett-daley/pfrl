@@ -176,20 +176,19 @@ def batch_experiences(experiences, device, phi, gamma, batch_states=batch_states
     """
 
     def memory_safe_tensor(a, **kwargs):
-        return torch.tensor(np.array(a), **kwargs)
+        return np.array(a, **kwargs)
 
     batch_exp = {
         "state": batch_states([elem[0]["state"] for elem in experiences], device, phi),
         "action": memory_safe_tensor(
-            [elem[0]["action"] for elem in experiences], device=device
+            [elem[0]["action"] for elem in experiences],
         ),
         "reward": memory_safe_tensor(
             [
                 sum((gamma**i) * exp[i]["reward"] for i in range(len(exp)))
                 for exp in experiences
             ],
-            dtype=torch.float32,
-            device=device,
+            dtype=np.float32,
         ),
         "next_state": batch_states(
             [elem[-1]["next_state"] for elem in experiences], device, phi
@@ -199,19 +198,19 @@ def batch_experiences(experiences, device, phi, gamma, batch_states=batch_states
                 any(transition["is_state_terminal"] for transition in exp)
                 for exp in experiences
             ],
-            dtype=torch.float32,
-            device=device,
+            dtype=np.float32,
         ),
         "discount": memory_safe_tensor(
             [(gamma ** len(elem)) for elem in experiences],
-            dtype=torch.float32,
-            device=device,
+            dtype=np.float32,
         ),
     }
     if all(elem[-1]["next_action"] is not None for elem in experiences):
         batch_exp["next_action"] = memory_safe_tensor(
-            [elem[-1]["next_action"] for elem in experiences], device=device
+            [elem[-1]["next_action"] for elem in experiences],
         )
+
+    batch_exp = {k: torch.tensor(v, device=device) for k, v in batch_exp.items()}
     return batch_exp
 
 
