@@ -213,8 +213,8 @@ class TD3(AttributeSavingMixin, BatchAgent):
         # Update stats
         # self.q1_record.extend(predict_q1.detach().cpu().numpy())
         # self.q2_record.extend(predict_q2.detach().cpu().numpy())
-        self.q_func1_loss_record.append(loss1.detach().cpu().numpy())
-        self.q_func2_loss_record.append(loss2.detach().cpu().numpy())
+        # self.q_func1_loss_record.append(loss1.detach().cpu().numpy())
+        # self.q_func2_loss_record.append(loss2.detach().cpu().numpy())
 
         self.q_func1_optimizer.zero_grad()
         loss1.backward()
@@ -230,18 +230,27 @@ class TD3(AttributeSavingMixin, BatchAgent):
 
         self.q_func_n_updates += 1
 
+        del loss1, loss2, predict_q1, predict_q2, target_q, next_q, next_q1, next_q2, next_actions
+        del batch_next_state, batch_rewards, batch_terminal, batch_state, batch_actions, batch_discount
+
+        # Everything except state
+        del batch["next_state"], batch["reward"], batch["is_state_terminal"], batch["action"], batch["discount"]
+
     def update_policy(self, batch):
         """Compute loss for actor."""
 
         batch_state = batch["state"]
 
         onpolicy_actions = self.policy(batch_state).rsample()
-        q = self.q_func1((batch_state, onpolicy_actions))
+        # q = self.q_func1((batch_state, onpolicy_actions))
+        # q = self.q_func1(onpolicy_actions)
+        # q = torch.zeros_like(batch["reward"], requires_grad=True)
+        q = onpolicy_actions
 
         # Since we want to maximize Q, loss is negation of Q
         loss = -torch.mean(q)
 
-        self.policy_loss_record.append(float(loss))
+        # self.policy_loss_record.append(loss.detach().cpu().numpy())
         self.policy_optimizer.zero_grad()
         loss.backward()
         if self.max_grad_norm is not None:
@@ -249,11 +258,13 @@ class TD3(AttributeSavingMixin, BatchAgent):
         self.policy_optimizer.step()
         self.policy_n_updates += 1
 
+        del loss, q, onpolicy_actions, batch_state
+
     def update(self, experiences, errors_out=None):
         """Update the model from experiences"""
 
         batch = batch_experiences(experiences, self.device, self.phi, self.gamma)
-        self.update_q_func(batch)
+        # self.update_q_func(batch)
         if self.q_func_n_updates % self.policy_update_delay == 0:
             self.update_policy(batch)
             self.sync_target_network()
@@ -262,8 +273,10 @@ class TD3(AttributeSavingMixin, BatchAgent):
         with torch.no_grad(), pfrl.utils.evaluating(self.policy):
             batch_xs = self.batch_states(batch_obs, self.device, self.phi)
             batch_xs = torch.tensor(batch_xs, device=self.device)
-            batch_action = self.policy(batch_xs).sample().cpu().numpy()
-        return list(batch_action)
+            return self.policy(batch_xs).sample().cpu().numpy()
+            # return self.policy(batch_xs).cpu().numpy()
+            # batch_action = self.policy(batch_xs).sample().cpu().numpy()
+        # return list(batch_action)
 
     def batch_act(self, batch_obs):
         if self.training:
