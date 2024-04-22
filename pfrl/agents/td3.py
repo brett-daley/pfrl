@@ -258,7 +258,7 @@ class TD3(AttributeSavingMixin, BatchAgent):
         self.policy_optimizer.step()
         self.policy_n_updates += 1
 
-        del loss, q, onpolicy_actions, batch_state
+        del loss
 
     def update(self, experiences, errors_out=None):
         """Update the model from experiences"""
